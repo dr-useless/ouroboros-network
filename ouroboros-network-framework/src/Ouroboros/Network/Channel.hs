@@ -184,8 +184,8 @@ createConnectedBufferedChannels sz = do
       }
 
 -- | As 'createConnectedBufferedChannels', but in 'STM'.
-createConnectedBufferedChannelsSTM :: MonadSTMTx m
-                                   => Natural -> m (Channel m a, Channel m a)
+createConnectedBufferedChannelsSTM :: MonadSTMTx stm tvar
+                                   => Natural -> stm (Channel stm a, Channel stm a)
 createConnectedBufferedChannelsSTM sz = do
     -- Create two TBQueues to act as the channel buffers (one for each
     -- direction) and use them to make both ends of a bidirectional channel
