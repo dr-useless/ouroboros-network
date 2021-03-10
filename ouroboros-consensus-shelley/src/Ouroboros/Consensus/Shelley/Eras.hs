@@ -28,7 +28,11 @@ import           Data.Text (Text)
 import           GHC.Records
 import           Numeric.Natural (Natural)
 
+import           Cardano.Binary (FromCBOR (..), ToCBOR (..))
+
 import           Cardano.Ledger.Allegra (AllegraEra)
+import           Cardano.Ledger.Alonzo (AlonzoEra)
+import qualified Cardano.Ledger.Alonzo.PParams as Alonzo
 import qualified Cardano.Ledger.Core as LC
 import           Cardano.Ledger.Era (Crypto)
 import           Cardano.Ledger.Mary (MaryEra)
@@ -40,14 +44,6 @@ import qualified Cardano.Ledger.Shelley.Constraints as SL
 import           Ouroboros.Consensus.Shelley.Protocol.Crypto (StandardCrypto)
 import qualified Shelley.Spec.Ledger.API as SL
 import qualified Shelley.Spec.Ledger.BaseTypes as SL
-
--- | Temporary workaround
--- Currently AlonzoEra from 'cardano-ledger-alonzo' is not ready to be used
--- We use this type alias to temporarily work around this issue.
--- Once 'AlonzoEra' from 'cardano-ledger-alonzo' is ready we will remove
--- this workaround and replace it with the proper one from
--- the 'import Cardano.Ledger.Alonzo (AlonzoEra)''
-type AlonzoEra c = MaryEra c
 
 {-------------------------------------------------------------------------------
   Eras instantiated with standard crypto
@@ -111,6 +107,9 @@ class ( SL.ShelleyBasedEra era
       , HasField "_rho" (LC.PParams era) SL.UnitInterval
       , HasField "_tau" (LC.PParams era) SL.UnitInterval
       , HasField "_protocolVersion" (SL.PParamsDelta era) (SL.StrictMaybe SL.ProtVer)
+      , FromCBOR (LC.PParams era)
+      , FromCBOR (SL.PParamsDelta era)
+      , ToCBOR (LC.PParams era)
       , SL.AdditionalGenesisConfig era ~ ()
       , FromCBOR (LC.PParams era)
       , FromCBOR (SL.PParamsDelta era)
@@ -128,3 +127,12 @@ instance SL.PraosCrypto c => ShelleyBasedEra (AllegraEra c) where
 
 instance SL.PraosCrypto c => ShelleyBasedEra (MaryEra c) where
   shelleyBasedEraName _ = "Mary"
+
+instance SL.PraosCrypto c => ShelleyBasedEra (AlonzoEra c) where
+  shelleyBasedEraName _ = "Alonzo"
+
+instance SL.PraosCrypto c => FromCBOR (Alonzo.PParams (AlonzoEra c)) where
+  fromCBOR = undefined
+
+instance SL.PraosCrypto c => FromCBOR (Alonzo.PParamsUpdate (AlonzoEra c)) where
+  fromCBOR = undefined

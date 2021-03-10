@@ -30,6 +30,16 @@ import           Data.SOP.Strict
 
 import           Test.QuickCheck
 
+import           Cardano.Ledger.Alonzo.Data (AuxiliaryData)
+import           Cardano.Ledger.Alonzo.PParams (PParams)
+import           Cardano.Ledger.Alonzo.Scripts (Script)
+import           Cardano.Ledger.Alonzo.TxBody (TxBody, TxOut)
+import qualified Cardano.Ledger.Crypto as CryptoClass
+import           Test.Shelley.Spec.Ledger.ConcreteCryptoTypes (Mock)
+import           Test.Shelley.Spec.Ledger.Generator.EraGen (EraGen (..))
+import           Test.Shelley.Spec.Ledger.Generator.ScriptClass
+                     (ScriptClass (..))
+
 import           Ouroboros.Consensus.Block
 import qualified Ouroboros.Consensus.HardFork.History as History
 import           Ouroboros.Consensus.HeaderValidation
@@ -63,6 +73,35 @@ import           Test.Consensus.Cardano.MockCrypto
 {-------------------------------------------------------------------------------
   Disk
 -------------------------------------------------------------------------------}
+
+
+-- | Orphans
+instance Arbitrary (TxOut (AlonzoEra c)) where
+  arbitrary = undefined
+
+instance Arbitrary (Script (AlonzoEra c)) where
+  arbitrary = undefined
+
+instance Arbitrary (TxBody (AlonzoEra c)) where
+  arbitrary = undefined
+
+instance Arbitrary (PParams (AlonzoEra c)) where
+  arbitrary = undefined
+
+instance Arbitrary (AuxiliaryData (AlonzoEra c)) where
+  arbitrary = undefined
+
+instance (CryptoClass.Crypto c) => ScriptClass (AlonzoEra c) where
+  isKey = undefined
+  basescript = undefined
+  quantify = undefined
+  unQuantify = undefined
+
+instance (CryptoClass.Crypto c, Mock c) => EraGen (AlonzoEra c) where
+  genGenesisValue = undefined
+  genEraTxBody _ge = undefined
+  genEraAuxiliaryData = undefined
+  updateEraTxBody = undefined
 
 instance Arbitrary (CardanoBlock MockCryptoCompatByron) where
   arbitrary = HardForkBlock . OneEraBlock <$> arbitrary

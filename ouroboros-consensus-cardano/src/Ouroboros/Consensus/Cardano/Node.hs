@@ -1,14 +1,15 @@
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE FlexibleInstances   #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE NamedFieldPuns      #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE PatternSynonyms     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE TypeFamilies        #-}
-{-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE NamedFieldPuns        #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE PatternSynonyms       #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeApplications      #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeOperators         #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 module Ouroboros.Consensus.Cardano.Node (
     protocolInfoCardano
@@ -46,6 +47,9 @@ import           Data.Word (Word16)
 
 import           Cardano.Binary (DecoderError (..), enforceSize)
 import           Cardano.Chain.Slotting (EpochSlots)
+import           Cardano.Ledger.Crypto (Crypto)
+import           Cardano.Ledger.Era (PreviousEra, TranslateEra,
+                     TranslationContext)
 import           Cardano.Prelude (cborError)
 
 import           Ouroboros.Consensus.Block
@@ -392,6 +396,13 @@ data ProtocolParamsTransition eraFrom eraTo = ProtocolParamsTransition {
       transitionTrigger    :: TriggerHardFork
     }
 
+-- | Orphaned instance, this should exists on ledger side
+type instance PreviousEra (AlonzoEra c) = MaryEra c
+type instance TranslationContext (AlonzoEra c) = ()
+
+instance Crypto c => TranslateEra (AlonzoEra c) ShelleyGenesis where
+  translateEra _ctxt _genesis = undefined
+
 -- | Create a 'ProtocolInfo' for 'CardanoBlock'
 --
 -- NOTE: the initial staking and funds in the 'ShelleyGenesis' are ignored,
@@ -569,7 +580,6 @@ protocolInfoCardano protocolParamsByron@ProtocolParamsByron {
           triggerHardForkMaryAlonzo
 
     -- Alonzo
-
     genesisAlonzo :: ShelleyGenesis (AlonzoEra c)
     genesisAlonzo = SL.translateEra' () genesisMary
 
