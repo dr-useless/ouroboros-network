@@ -50,8 +50,8 @@ import           Cardano.Binary (FromCBOR (..), ToCBOR (..), enforceSize)
 import           Ouroboros.Consensus.Block
 import           Ouroboros.Consensus.Config
 import           Ouroboros.Consensus.HardFork.Abstract (hardForkSummary)
-import           Ouroboros.Consensus.HardFork.History (Bound (..), EraParams,
-                     Shape (..))
+import           Ouroboros.Consensus.HardFork.History (Bound (..),
+                     EraParams (..), Shape (..))
 import qualified Ouroboros.Consensus.HardFork.History as History
 import           Ouroboros.Consensus.HeaderValidation
 import           Ouroboros.Consensus.Ledger.Abstract
@@ -62,6 +62,7 @@ import           Ouroboros.Consensus.TypeFamilyWrappers (WrapChainDepState (..))
 import           Ouroboros.Consensus.Util (ShowProxy)
 import           Ouroboros.Consensus.Util.Counting (getExactly)
 
+import           Ouroboros.Consensus.BlockchainTime (SlotLength)
 import           Ouroboros.Consensus.HardFork.Combinator.Abstract
 import           Ouroboros.Consensus.HardFork.Combinator.AcrossEras
 import           Ouroboros.Consensus.HardFork.Combinator.Basics
@@ -270,15 +271,20 @@ interpretQueryIfCurrent = go
 -------------------------------------------------------------------------------}
 
 data QueryAnytime result where
-  GetEraStart :: QueryAnytime (Maybe Bound)
+  GetEraStart   :: QueryAnytime (Maybe Bound)
+  GetSlotLength :: QueryAnytime SlotLength
 
 deriving instance Show (QueryAnytime result)
 
 instance ShowQuery QueryAnytime where
-  showResult GetEraStart = show
+  showResult GetEraStart   = show
+  showResult GetSlotLength = show
 
 instance SameDepIndex QueryAnytime where
-  sameDepIndex GetEraStart GetEraStart = Just Refl
+  sameDepIndex GetEraStart GetEraStart     = Just Refl
+  sameDepIndex GetEraStart _               = Nothing
+  sameDepIndex GetSlotLength GetSlotLength = Just Refl
+  sameDepIndex GetSlotLength _             = Nothing
 
 interpretQueryAnytime ::
      forall result xs. All SingleEraBlock xs
@@ -287,29 +293,27 @@ interpretQueryAnytime ::
   -> EraIndex xs
   -> State.HardForkState LedgerState xs
   -> result
-interpretQueryAnytime cfg query (EraIndex era) st =
-    answerQueryAnytime cfg query (State.situate era st)
-
-answerQueryAnytime ::
-     All SingleEraBlock xs
-  => HardForkLedgerConfig xs
-  -> QueryAnytime result
-  -> Situated h LedgerState xs
-  -> result
-answerQueryAnytime HardForkLedgerConfig{..} =
-    go cfgs (getExactly (getShape hardForkLedgerConfigShape))
+interpretQueryAnytime HardForkLedgerConfig{..} query (EraIndex era) st
+  = case query of
+    GetEraStart ->
+      goGetEraStart
+        allLedgerConfigs
+        allEraParams
+        (State.situate era st)
+    GetSlotLength -> eraSlotLength $ lookupEraParams (EraIndex era) allEraParams
   where
-    cfgs = getPerEraLedgerConfig hardForkLedgerConfigPerEra
+    allLedgerConfigs = getPerEraLedgerConfig hardForkLedgerConfigPerEra
 
-    go :: All SingleEraBlock xs'
+    allEraParams = getExactly (getShape hardForkLedgerConfigShape)
+
+    goGetEraStart :: All SingleEraBlock xs'
        => NP WrapPartialLedgerConfig xs'
        -> NP (K EraParams) xs'
-       -> QueryAnytime result
        -> Situated h LedgerState xs'
-       -> result
-    go Nil       _             _           ctxt = case ctxt of {}
-    go (c :* cs) (K ps :* pss) GetEraStart ctxt = case ctxt of
-      SituatedShift ctxt'   -> go cs pss GetEraStart ctxt'
+       -> (Maybe Bound)
+    goGetEraStart Nil       _             ctxt = case ctxt of {}
+    goGetEraStart (c :* cs) (K ps :* pss) ctxt = case ctxt of
+      SituatedShift ctxt'   -> goGetEraStart cs pss ctxt'
       SituatedFuture _ _    -> Nothing
       SituatedPast past _   -> Just $ pastStart $ unK past
       SituatedCurrent cur _ -> Just $ currentStart cur
@@ -320,6 +324,17 @@ answerQueryAnytime HardForkLedgerConfig{..} =
           ps
           (currentStart cur)
           (currentState cur)
+
+    -- | Lookup the EraParams at the given EraIndex and return the slot
+    -- length.
+    lookupEraParams :: All SingleEraBlock xs'
+       => EraIndex xs'
+       -> NP (K EraParams) xs'
+       -> EraParams
+    lookupEraParams (EraIndex era') (K eraParams :* eraParamsRest)
+      = case era' of
+        Z _     -> eraParams
+        S era'' -> lookupEraParams (EraIndex era'') eraParamsRest
 
 {-------------------------------------------------------------------------------
   Hard fork queries
@@ -380,9 +395,14 @@ interpretQueryHardFork cfg query st =
 -------------------------------------------------------------------------------}
 
 instance Serialise (Some QueryAnytime) where
-  encode (Some GetEraStart) = mconcat [
+  encode = \case
+    Some GetEraStart -> mconcat [
         Enc.encodeListLen 1
       , Enc.encodeWord8 0
+      ]
+    Some GetSlotLength -> mconcat [
+        Enc.encodeListLen 1
+      , Enc.encodeWord8 1
       ]
 
   decode = do
@@ -390,13 +410,18 @@ instance Serialise (Some QueryAnytime) where
     tag <- Dec.decodeWord8
     case tag of
       0 -> return $ Some GetEraStart
+      1 -> return $ Some GetSlotLength
       _ -> fail $ "QueryAnytime: invalid tag " ++ show tag
 
 encodeQueryAnytimeResult :: QueryAnytime result -> result -> Encoding
-encodeQueryAnytimeResult GetEraStart = encode
+encodeQueryAnytimeResult = \case
+   GetEraStart   -> encode
+   GetSlotLength -> toCBOR
 
 decodeQueryAnytimeResult :: QueryAnytime result -> forall s. Decoder s result
-decodeQueryAnytimeResult GetEraStart = decode
+decodeQueryAnytimeResult = \case
+   GetEraStart   -> decode
+   GetSlotLength -> fromCBOR
 
 encodeQueryHardForkResult ::
      (ToCBOR (LedgerConfig (HardForkBlock xs)), SListI xs)

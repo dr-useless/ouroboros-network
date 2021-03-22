@@ -6,6 +6,7 @@
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE QuantifiedConstraints      #-}
+{-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TypeApplications           #-}
@@ -479,16 +480,16 @@ instance c ~ MockCryptoCompatByron
               <*> genQueryIfCurrentResultEraMismatch)
       , (1, WithVersion
               <$> (getHardForkEnabledNodeToClientVersion <$> arbitrary)
-              <*> genQueryAnytimeResultByron)
+              <*> genQueryAnytimeResult QueryAnytimeByron)
       , (1, WithVersion
               <$> (getHardForkEnabledNodeToClientVersion <$> arbitrary)
-              <*> genQueryAnytimeResultShelley)
+              <*> genQueryAnytimeResult QueryAnytimeShelley)
       , (1, WithVersion
               <$> (getHardForkEnabledNodeToClientVersion <$> arbitrary)
-              <*> genQueryAnytimeResultAllegra)
+              <*> genQueryAnytimeResult QueryAnytimeAllegra)
       , (1, WithVersion
               <$> (getHardForkEnabledNodeToClientVersion <$> arbitrary)
-              <*> genQueryAnytimeResultMary)
+              <*> genQueryAnytimeResult QueryAnytimeMary)
       , (1, WithVersion
               <$> (getHardForkEnabledNodeToClientVersion <$> arbitrary)
               <*> genQueryHardForkResult)
@@ -520,21 +521,13 @@ instance c ~ MockCryptoCompatByron
               <$> arbitrary <*> arbitrary
           ]
 
-      genQueryAnytimeResultByron :: Gen (SomeResult (CardanoBlock c))
-      genQueryAnytimeResultByron =
-          SomeResult (QueryAnytimeByron GetEraStart) <$> arbitrary
-
-      genQueryAnytimeResultShelley :: Gen (SomeResult (CardanoBlock c))
-      genQueryAnytimeResultShelley =
-          SomeResult (QueryAnytimeShelley GetEraStart) <$> arbitrary
-
-      genQueryAnytimeResultAllegra :: Gen (SomeResult (CardanoBlock c))
-      genQueryAnytimeResultAllegra =
-          SomeResult (QueryAnytimeAllegra GetEraStart) <$> arbitrary
-
-      genQueryAnytimeResultMary :: Gen (SomeResult (CardanoBlock c))
-      genQueryAnytimeResultMary =
-          SomeResult (QueryAnytimeMary GetEraStart) <$> arbitrary
+      genQueryAnytimeResult ::
+           (forall result . QueryAnytime result -> Query blk result)
+        -> Gen (SomeResult blk)
+      genQueryAnytimeResult toQuery = frequency
+          [ (1, SomeResult (toQuery GetEraStart) <$> arbitrary)
+          , (1, SomeResult (toQuery GetSlotLength) <$> arbitrary)
+          ]
 
       genQueryHardForkResult :: Gen (SomeResult (CardanoBlock c))
       genQueryHardForkResult = oneof

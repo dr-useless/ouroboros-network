@@ -101,7 +101,11 @@ data Situated h f xs where
   SituatedPast    :: K Past    x ->    h x  -> Situated h f (x ': xs)
   SituatedShift   :: Situated h f xs        -> Situated h f (x ': xs)
 
-situate :: NS h xs -> HardForkState f xs -> Situated h f xs
+-- | Situate an index relative to a hard fork state
+situate ::
+     NS h xs            -- ^ The index
+  -> HardForkState f xs -- ^ The hard fork state
+  -> Situated h f xs    -- ^ Where the index is situated relative to the hard for state.
 situate ns = go ns . getHardForkState
   where
     go :: NS h xs'

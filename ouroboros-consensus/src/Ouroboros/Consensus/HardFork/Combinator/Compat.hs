@@ -112,7 +112,8 @@ singleEraCompatQuery epochSize slotLen f ledgerConfig consensusConfig = go
     go (CompatHardFork  qry)    = goHardFork qry
 
     goAnytime :: QueryAnytime result -> m result
-    goAnytime GetEraStart = return $ Just initBound
+    goAnytime GetEraStart   = return $ Just initBound
+    goAnytime GetSlotLength = return slotLen
 
     goHardFork :: QueryHardFork '[era] result -> m result
     goHardFork GetInterpreter   = return $ Qry.mkInterpreter summary
