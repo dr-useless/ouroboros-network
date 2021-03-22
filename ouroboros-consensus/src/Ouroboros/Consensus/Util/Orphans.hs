@@ -89,6 +89,9 @@ instance FromCBOR UTCTime where
     timeOfDayPico <- fromCBOR @Integer
     return (UTCTime (fromOrdinalDate year dayOfYear) (picosecondsToDiffTime timeOfDayPico))
 
+deriving newtype instance ToCBOR EpochSize
+
+deriving newtype instance FromCBOR EpochSize
 
 {-------------------------------------------------------------------------------
   NoThunks

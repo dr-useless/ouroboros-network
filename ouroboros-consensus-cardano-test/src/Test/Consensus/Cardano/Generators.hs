@@ -527,6 +527,7 @@ instance c ~ MockCryptoCompatByron
       genQueryAnytimeResult toQuery = frequency
           [ (1, SomeResult (toQuery GetEraStart) <$> arbitrary)
           , (1, SomeResult (toQuery GetSlotLength) <$> arbitrary)
+          , (1, SomeResult (toQuery GetEpochSize) <$> arbitrary)
           ]
 
       genQueryHardForkResult :: Gen (SomeResult (CardanoBlock c))

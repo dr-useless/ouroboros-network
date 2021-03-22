@@ -273,18 +273,22 @@ interpretQueryIfCurrent = go
 data QueryAnytime result where
   GetEraStart   :: QueryAnytime (Maybe Bound)
   GetSlotLength :: QueryAnytime SlotLength
+  GetEpochSize  :: QueryAnytime EpochSize
 
 deriving instance Show (QueryAnytime result)
 
 instance ShowQuery QueryAnytime where
   showResult GetEraStart   = show
   showResult GetSlotLength = show
+  showResult GetEpochSize  = show
 
 instance SameDepIndex QueryAnytime where
   sameDepIndex GetEraStart GetEraStart     = Just Refl
   sameDepIndex GetEraStart _               = Nothing
   sameDepIndex GetSlotLength GetSlotLength = Just Refl
   sameDepIndex GetSlotLength _             = Nothing
+  sameDepIndex GetEpochSize GetEpochSize   = Just Refl
+  sameDepIndex GetEpochSize _              = Nothing
 
 interpretQueryAnytime ::
      forall result xs. All SingleEraBlock xs
@@ -301,6 +305,7 @@ interpretQueryAnytime HardForkLedgerConfig{..} query (EraIndex era) st
         allEraParams
         (State.situate era st)
     GetSlotLength -> eraSlotLength $ lookupEraParams (EraIndex era) allEraParams
+    GetEpochSize -> eraEpochSize $ lookupEraParams (EraIndex era) allEraParams
   where
     allLedgerConfigs = getPerEraLedgerConfig hardForkLedgerConfigPerEra
 
@@ -404,6 +409,10 @@ instance Serialise (Some QueryAnytime) where
         Enc.encodeListLen 1
       , Enc.encodeWord8 1
       ]
+    Some GetEpochSize -> mconcat [
+        Enc.encodeListLen 1
+      , Enc.encodeWord8 2
+      ]
 
   decode = do
     enforceSize "QueryAnytime" 1
@@ -411,17 +420,20 @@ instance Serialise (Some QueryAnytime) where
     case tag of
       0 -> return $ Some GetEraStart
       1 -> return $ Some GetSlotLength
+      2 -> return $ Some GetEpochSize
       _ -> fail $ "QueryAnytime: invalid tag " ++ show tag
 
 encodeQueryAnytimeResult :: QueryAnytime result -> result -> Encoding
 encodeQueryAnytimeResult = \case
    GetEraStart   -> encode
    GetSlotLength -> toCBOR
+   GetEpochSize  -> toCBOR
 
 decodeQueryAnytimeResult :: QueryAnytime result -> forall s. Decoder s result
 decodeQueryAnytimeResult = \case
    GetEraStart   -> decode
    GetSlotLength -> fromCBOR
+   GetEpochSize  -> fromCBOR
 
 encodeQueryHardForkResult ::
      (ToCBOR (LedgerConfig (HardForkBlock xs)), SListI xs)

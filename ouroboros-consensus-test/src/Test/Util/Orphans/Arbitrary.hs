@@ -93,6 +93,10 @@ instance Arbitrary SlotLength where
     where
       oneSec = slotLengthFromSec 1
 
+-- | Size between 50 and 200 slots
+instance Arbitrary EpochSize where
+  arbitrary = EpochSize <$> choose (50, 200)
+
 deriving via UTCTime         instance Arbitrary SystemStart
 deriving via Positive Word64 instance Arbitrary BlockNo
 
