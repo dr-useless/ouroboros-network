@@ -1,11 +1,13 @@
-{-# LANGUAGE DataKinds            #-}
-{-# LANGUAGE EmptyCase            #-}
-{-# LANGUAGE FlexibleContexts     #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
-{-# LANGUAGE TypeApplications     #-}
-{-# LANGUAGE TypeOperators        #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE EmptyCase             #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeApplications      #-}
+{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE UndecidableInstances  #-}
 
+{-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Ouroboros.Consensus.HardFork.Combinator.Abstract.SingleEraBlock (
     -- * Single era block
     SingleEraBlock(..)
@@ -43,6 +45,8 @@ import           Ouroboros.Consensus.Storage.Serialisation
 import           Ouroboros.Consensus.Util.Condense
 import           Ouroboros.Consensus.Util.SOP
 
+import           Cardano.Binary
+import           Data.Typeable (Typeable)
 import           Ouroboros.Consensus.HardFork.Combinator.Info
 import           Ouroboros.Consensus.HardFork.Combinator.PartialConfig
 import           Ouroboros.Consensus.HardFork.Combinator.Util.Match
@@ -137,9 +141,15 @@ instance All SingleEraBlock xs => Condense (EraIndex xs) where
           . singleEraName
           $ singleEraInfo (Proxy @blk)
 
-instance SListI xs => Serialise (EraIndex xs) where
-  encode = encode . nsToIndex . getEraIndex
-  decode = do
+instance (Typeable xs, SListI xs) => Serialise (EraIndex xs) where
+  encode = toCBOR
+  decode = fromCBOR
+
+instance (Typeable xs, SListI xs) => ToCBOR (EraIndex xs) where
+  toCBOR = encode . nsToIndex . getEraIndex
+
+instance (Typeable xs, SListI xs) => FromCBOR (EraIndex xs) where
+  fromCBOR = do
     idx <- decode
     case nsFromIndex idx of
       Nothing       -> fail $ "EraIndex: invalid index " <> show idx
@@ -162,3 +172,19 @@ eraIndexSucc (EraIndex ix) = EraIndex (S ix)
 
 eraIndexToInt :: EraIndex xs -> Int
 eraIndexToInt = index_NS . getEraIndex
+
+-- -- | x equals to the indexed element in xs
+-- newtype KnownEraIndex (xs :: [Type]) x = KnownEraIndex { toEraIndex :: EraIndex xs }
+
+-- toKnownEraIndex :: SListI xs => EraIndex xs -> NS (KnownEraIndex xs) xs
+-- toKnownEraIndex eraIndex@(EraIndex ns) = hmap (\_ -> KnownEraIndex eraIndex) ns
+
+-- instance (Typeable xs, Typeable x) => ToCBOR (KnownEraIndex xs x) where
+--   toCBOR = toCBOR . toEraIndex
+
+-- instance (Typeable xs, Typeable x) => FromCBOR (KnownEraIndex xs x) where
+--   fromCBOR = do
+--     (EraIndex eraIndex) :: EraIndex xs <- fromCBOR
+--     let checkIndex ns = case ns of
+--           Z
+--     return $ KnownEraIndex $ EraIndex $ hmap _ eraIndex

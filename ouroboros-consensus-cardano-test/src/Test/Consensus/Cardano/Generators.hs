@@ -365,7 +365,7 @@ instance c ~ MockCryptoCompatByron
       aux (HardForkApplyTxErrWrongEra x) =
           HardForkApplyTxErrWrongEra <$> shrink x
 
-instance Arbitrary (Some QueryAnytime) where
+instance Arbitrary (Some (QueryAnytime xs)) where
   arbitrary = return $ Some GetEraStart
 
 instance CardanoHardForkConstraints c
@@ -522,7 +522,7 @@ instance c ~ MockCryptoCompatByron
           ]
 
       genQueryAnytimeResult ::
-           (forall result . QueryAnytime result -> Query blk result)
+           (forall result . QueryAnytime xs result -> Query blk result)
         -> Gen (SomeResult blk)
       genQueryAnytimeResult toQuery = frequency
           [ (1, SomeResult (toQuery GetEraStart) <$> arbitrary)

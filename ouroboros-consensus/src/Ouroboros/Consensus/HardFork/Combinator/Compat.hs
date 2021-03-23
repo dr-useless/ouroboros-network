@@ -44,7 +44,7 @@ data HardForkCompatQuery blk :: Type -> Type where
     -> HardForkCompatQuery blk result
 
   CompatAnytime ::
-       QueryAnytime result
+       QueryAnytime (HardForkIndices blk) result
     -> EraIndex (HardForkIndices blk)
     -> HardForkCompatQuery blk result
 
@@ -111,7 +111,7 @@ singleEraCompatQuery epochSize slotLen f ledgerConfig consensusConfig = go
     go (CompatAnytime   qry ix) = const (goAnytime qry) (trivialIndex ix)
     go (CompatHardFork  qry)    = goHardFork qry
 
-    goAnytime :: QueryAnytime result -> m result
+    goAnytime :: QueryAnytime xs result -> m result
     goAnytime GetEraStart   = return $ Just initBound
     goAnytime GetSlotLength = return slotLen
     goAnytime GetEpochSize  = return epochSize

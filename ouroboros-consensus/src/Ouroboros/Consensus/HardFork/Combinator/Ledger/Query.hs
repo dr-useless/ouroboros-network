@@ -100,7 +100,7 @@ data instance Query (HardForkBlock xs) :: Type -> Type where
   -- HFC applied to a single era is still isomorphic to the single era.
   QueryAnytime ::
        IsNonEmpty xs
-    => QueryAnytime result
+    => QueryAnytime (x ': xs) result
     -> EraIndex (x ': xs)
     -> Query (HardForkBlock (x ': xs)) result
 
@@ -211,7 +211,7 @@ getHardForkQuery :: Query (HardForkBlock xs) result
                  -> (forall x' xs'.
                           xs :~: x' ': xs'
                        -> ProofNonEmpty xs'
-                       -> QueryAnytime result
+                       -> QueryAnytime xs result
                        -> EraIndex xs
                        -> r)
                  -> (forall x' xs'.
@@ -270,30 +270,34 @@ interpretQueryIfCurrent = go
   Any era queries
 -------------------------------------------------------------------------------}
 
-data QueryAnytime result where
-  GetEraStart   :: QueryAnytime (Maybe Bound)
-  GetSlotLength :: QueryAnytime SlotLength
-  GetEpochSize  :: QueryAnytime EpochSize
+data QueryAnytime xs result where
+  GetEraStart               :: QueryAnytime xs (Maybe Bound)
+  GetSlotLength             :: QueryAnytime xs SlotLength
+  GetEpochSize              :: QueryAnytime xs EpochSize
+  GetPartialConsensusConfig :: QueryAnytime xs (OneEraConsensusConfig xs)
 
-deriving instance Show (QueryAnytime result)
+deriving instance Show (QueryAnytime xs result)
 
-instance ShowQuery QueryAnytime where
-  showResult GetEraStart   = show
-  showResult GetSlotLength = show
-  showResult GetEpochSize  = show
+instance ShowQuery (QueryAnytime xs) where
+  showResult GetEraStart               = show
+  showResult GetSlotLength             = show
+  showResult GetEpochSize              = show
+  showResult GetPartialConsensusConfig = const "PartialLedgerConfig{}"
 
-instance SameDepIndex QueryAnytime where
-  sameDepIndex GetEraStart GetEraStart     = Just Refl
-  sameDepIndex GetEraStart _               = Nothing
-  sameDepIndex GetSlotLength GetSlotLength = Just Refl
-  sameDepIndex GetSlotLength _             = Nothing
-  sameDepIndex GetEpochSize GetEpochSize   = Just Refl
-  sameDepIndex GetEpochSize _              = Nothing
+instance SameDepIndex (QueryAnytime xs) where
+  sameDepIndex GetEraStart GetEraStart                             = Just Refl
+  sameDepIndex GetEraStart _                                       = Nothing
+  sameDepIndex GetSlotLength GetSlotLength                         = Just Refl
+  sameDepIndex GetSlotLength _                                     = Nothing
+  sameDepIndex GetEpochSize GetEpochSize                           = Just Refl
+  sameDepIndex GetEpochSize _                                      = Nothing
+  sameDepIndex GetPartialConsensusConfig GetPartialConsensusConfig = Just Refl
+  sameDepIndex GetPartialConsensusConfig _                         = Nothing
 
 interpretQueryAnytime ::
      forall result xs. All SingleEraBlock xs
   => HardForkLedgerConfig xs
-  -> QueryAnytime result
+  -> QueryAnytime xs result
   -> EraIndex xs
   -> State.HardForkState LedgerState xs
   -> result
@@ -306,6 +310,7 @@ interpretQueryAnytime HardForkLedgerConfig{..} query (EraIndex era) st
         (State.situate era st)
     GetSlotLength -> eraSlotLength $ lookupEraParams (EraIndex era) allEraParams
     GetEpochSize -> eraEpochSize $ lookupEraParams (EraIndex era) allEraParams
+    GetPartialConsensusConfig -> _ hardForkLedgerConfigPerEra
   where
     allLedgerConfigs = getPerEraLedgerConfig hardForkLedgerConfigPerEra
 
@@ -399,7 +404,7 @@ interpretQueryHardFork cfg query st =
   Serialisation
 -------------------------------------------------------------------------------}
 
-instance Serialise (Some QueryAnytime) where
+instance Serialise (Some (QueryAnytime xs)) where
   encode = \case
     Some GetEraStart -> mconcat [
         Enc.encodeListLen 1
@@ -423,20 +428,20 @@ instance Serialise (Some QueryAnytime) where
       2 -> return $ Some GetEpochSize
       _ -> fail $ "QueryAnytime: invalid tag " ++ show tag
 
-encodeQueryAnytimeResult :: QueryAnytime result -> result -> Encoding
+encodeQueryAnytimeResult :: QueryAnytime xs result -> result -> Encoding
 encodeQueryAnytimeResult = \case
    GetEraStart   -> encode
    GetSlotLength -> toCBOR
    GetEpochSize  -> toCBOR
 
-decodeQueryAnytimeResult :: QueryAnytime result -> forall s. Decoder s result
+decodeQueryAnytimeResult :: QueryAnytime xs result -> forall s. Decoder s result
 decodeQueryAnytimeResult = \case
    GetEraStart   -> decode
    GetSlotLength -> fromCBOR
    GetEpochSize  -> fromCBOR
 
 encodeQueryHardForkResult ::
-     (ToCBOR (LedgerConfig (HardForkBlock xs)), SListI xs)
+     (ToCBOR (LedgerConfig (HardForkBlock xs)), Typeable xs, SListI xs)
   => QueryHardFork xs result -> result -> Encoding
 encodeQueryHardForkResult = \case
     GetInterpreter   -> encode
@@ -445,7 +450,7 @@ encodeQueryHardForkResult = \case
     GetSecurityParam -> toCBOR
 
 decodeQueryHardForkResult ::
-     (FromCBOR (LedgerConfig (HardForkBlock xs)), SListI xs)
+     (FromCBOR (LedgerConfig (HardForkBlock xs)), Typeable xs, SListI xs)
   => QueryHardFork xs result -> forall s. Decoder s result
 decodeQueryHardForkResult = \case
     GetInterpreter   -> decode

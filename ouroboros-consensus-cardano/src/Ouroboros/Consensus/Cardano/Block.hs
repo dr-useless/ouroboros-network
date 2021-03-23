@@ -504,7 +504,7 @@ pattern QueryIfCurrentMary q = QueryIfCurrent (QS (QS (QS (QZ q))))
 -- > QueryAnytimeByron EraStart
 --
 pattern QueryAnytimeByron
-  :: QueryAnytime result
+  :: QueryAnytime (CardanoEras c) result
   -> CardanoQuery c result
 pattern QueryAnytimeByron q = QueryAnytime q (EraIndex (Z (K ())))
 
@@ -517,7 +517,7 @@ pattern QueryAnytimeByron q = QueryAnytime q (EraIndex (Z (K ())))
 -- > QueryAnytimeShelley EraStart
 --
 pattern QueryAnytimeShelley
-  :: QueryAnytime result
+  :: QueryAnytime (CardanoEras c) result
   -> CardanoQuery c result
 pattern QueryAnytimeShelley q = QueryAnytime q (EraIndex (S (Z (K ()))))
 
@@ -530,7 +530,7 @@ pattern QueryAnytimeShelley q = QueryAnytime q (EraIndex (S (Z (K ()))))
 -- > QueryAnytimeAllegra EraStart
 --
 pattern QueryAnytimeAllegra
-  :: QueryAnytime result
+  :: QueryAnytime (CardanoEras c) result
   -> CardanoQuery c result
 pattern QueryAnytimeAllegra q = QueryAnytime q (EraIndex (S (S (Z (K ())))))
 
@@ -543,7 +543,7 @@ pattern QueryAnytimeAllegra q = QueryAnytime q (EraIndex (S (S (Z (K ())))))
 -- > QueryAnytimeMary EraStart
 --
 pattern QueryAnytimeMary
-  :: QueryAnytime result
+  :: QueryAnytime (CardanoEras c) result
   -> CardanoQuery c result
 pattern QueryAnytimeMary q = QueryAnytime q (EraIndex (S (S (S (Z (K ()))))))
 

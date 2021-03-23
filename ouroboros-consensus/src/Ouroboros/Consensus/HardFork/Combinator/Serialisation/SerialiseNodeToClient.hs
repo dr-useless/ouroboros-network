@@ -219,7 +219,7 @@ decodeQueryHardFork = do
       3 -> return $ Some GetSecurityParam
       _ -> fail $ "QueryHardFork: invalid tag " ++ show tag
 
-instance SerialiseHFC xs
+instance forall xs . SerialiseHFC xs
       => SerialiseNodeToClient (HardForkBlock xs) (SomeSecond Query (HardForkBlock xs)) where
   encodeNodeToClient ccfg version (SomeSecond q) = case version of
       HardForkNodeToClientDisabled v0 -> case q of
@@ -264,7 +264,7 @@ instance SerialiseHFC xs
             (2, 0) -> injQueryIfCurrent <$> dispatchDecoder ccfg version
 
             (3, 1) -> do
-              Some (qry :: QueryAnytime result) <- Serialise.decode
+              Some (qry :: QueryAnytime xs result) <- Serialise.decode
               eraIndex :: EraIndex (x' ': xs')  <- Serialise.decode
               case checkIsNonEmpty p of
                 Nothing -> fail $ "QueryAnytime requires multiple era"

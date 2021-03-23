@@ -28,6 +28,7 @@ module Ouroboros.Consensus.HardFork.Combinator.AcrossEras (
     -- * Values for /some/ eras
   , SomeErasCanBeLeader(..)
     -- * Value for /one/ era
+  , OneEraConsensusConfig(..)
   , OneEraApplyTxErr(..)
   , OneEraBlock(..)
   , OneEraCannotForge(..)
@@ -114,23 +115,24 @@ newtype SomeErasCanBeLeader xs = SomeErasCanBeLeader { getSomeErasCanBeLeader ::
   Value for /one/ era
 -------------------------------------------------------------------------------}
 
-newtype OneEraApplyTxErr            xs = OneEraApplyTxErr            { getOneEraApplyTxErr            :: NS WrapApplyTxErr            xs }
-newtype OneEraBlock                 xs = OneEraBlock                 { getOneEraBlock                 :: NS I                         xs }
-newtype OneEraCannotForge           xs = OneEraCannotForge           { getOneEraCannotForge           :: NS WrapCannotForge           xs }
-newtype OneEraEnvelopeErr           xs = OneEraEnvelopeErr           { getOneEraEnvelopeErr           :: NS WrapEnvelopeErr           xs }
-newtype OneEraForgeStateInfo        xs = OneEraForgeStateInfo        { getOneEraForgeStateInfo        :: NS WrapForgeStateInfo        xs }
-newtype OneEraForgeStateUpdateError xs = OneEraForgeStateUpdateError { getOneEraForgeStateUpdateError :: NS WrapForgeStateUpdateError xs }
-newtype OneEraGenTx                 xs = OneEraGenTx                 { getOneEraGenTx                 :: NS GenTx                     xs }
-newtype OneEraGenTxId               xs = OneEraGenTxId               { getOneEraGenTxId               :: NS WrapGenTxId               xs }
-newtype OneEraHeader                xs = OneEraHeader                { getOneEraHeader                :: NS Header                    xs }
-newtype OneEraIsLeader              xs = OneEraIsLeader              { getOneEraIsLeader              :: NS WrapIsLeader              xs }
-newtype OneEraLedgerError           xs = OneEraLedgerError           { getOneEraLedgerError           :: NS WrapLedgerErr             xs }
-newtype OneEraLedgerUpdate          xs = OneEraLedgerUpdate          { getOneEraLedgerUpdate          :: NS WrapLedgerUpdate          xs }
-newtype OneEraLedgerWarning         xs = OneEraLedgerWarning         { getOneEraLedgerWarning         :: NS WrapLedgerWarning         xs }
-newtype OneEraSelectView            xs = OneEraSelectView            { getOneEraSelectView            :: NS WrapSelectView            xs }
-newtype OneEraTipInfo               xs = OneEraTipInfo               { getOneEraTipInfo               :: NS WrapTipInfo               xs }
-newtype OneEraValidateView          xs = OneEraValidateView          { getOneEraValidateView          :: NS WrapValidateView          xs }
-newtype OneEraValidationErr         xs = OneEraValidationErr         { getOneEraValidationErr         :: NS WrapValidationErr         xs }
+newtype OneEraConsensusConfig       xs = OneEraConsensusConfig       { getOneEraConsensusConfig       :: NS WrapPartialConsensusConfig xs }
+newtype OneEraApplyTxErr            xs = OneEraApplyTxErr            { getOneEraApplyTxErr            :: NS WrapApplyTxErr             xs }
+newtype OneEraBlock                 xs = OneEraBlock                 { getOneEraBlock                 :: NS I                          xs }
+newtype OneEraCannotForge           xs = OneEraCannotForge           { getOneEraCannotForge           :: NS WrapCannotForge            xs }
+newtype OneEraEnvelopeErr           xs = OneEraEnvelopeErr           { getOneEraEnvelopeErr           :: NS WrapEnvelopeErr            xs }
+newtype OneEraForgeStateInfo        xs = OneEraForgeStateInfo        { getOneEraForgeStateInfo        :: NS WrapForgeStateInfo         xs }
+newtype OneEraForgeStateUpdateError xs = OneEraForgeStateUpdateError { getOneEraForgeStateUpdateError :: NS WrapForgeStateUpdateError  xs }
+newtype OneEraGenTx                 xs = OneEraGenTx                 { getOneEraGenTx                 :: NS GenTx                      xs }
+newtype OneEraGenTxId               xs = OneEraGenTxId               { getOneEraGenTxId               :: NS WrapGenTxId                xs }
+newtype OneEraHeader                xs = OneEraHeader                { getOneEraHeader                :: NS Header                     xs }
+newtype OneEraIsLeader              xs = OneEraIsLeader              { getOneEraIsLeader              :: NS WrapIsLeader               xs }
+newtype OneEraLedgerError           xs = OneEraLedgerError           { getOneEraLedgerError           :: NS WrapLedgerErr              xs }
+newtype OneEraLedgerUpdate          xs = OneEraLedgerUpdate          { getOneEraLedgerUpdate          :: NS WrapLedgerUpdate           xs }
+newtype OneEraLedgerWarning         xs = OneEraLedgerWarning         { getOneEraLedgerWarning         :: NS WrapLedgerWarning          xs }
+newtype OneEraSelectView            xs = OneEraSelectView            { getOneEraSelectView            :: NS WrapSelectView             xs }
+newtype OneEraTipInfo               xs = OneEraTipInfo               { getOneEraTipInfo               :: NS WrapTipInfo                xs }
+newtype OneEraValidateView          xs = OneEraValidateView          { getOneEraValidateView          :: NS WrapValidateView           xs }
+newtype OneEraValidationErr         xs = OneEraValidationErr         { getOneEraValidationErr         :: NS WrapValidationErr          xs }
 
 {-------------------------------------------------------------------------------
   Hash
