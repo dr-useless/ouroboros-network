@@ -6,6 +6,7 @@
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE UndecidableInstances  #-}
 
+{-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 module Ouroboros.Consensus.HardFork.Combinator.Abstract.SingleEraBlock (
@@ -21,6 +22,10 @@ module Ouroboros.Consensus.HardFork.Combinator.Abstract.SingleEraBlock (
   , eraIndexZero
   , eraIndexSucc
   , eraIndexToInt
+  , KnownEraIndex(..)
+  , TypeEqWrapper(..)
+  -- , toKnownEraIndex
+  , toEraIndex
   ) where
 
 import           Codec.Serialise
@@ -46,6 +51,7 @@ import           Ouroboros.Consensus.Util.Condense
 import           Ouroboros.Consensus.Util.SOP
 
 import           Cardano.Binary
+import           Data.Kind (Type)
 import           Data.Typeable (Typeable)
 import           Ouroboros.Consensus.HardFork.Combinator.Info
 import           Ouroboros.Consensus.HardFork.Combinator.PartialConfig
@@ -173,18 +179,43 @@ eraIndexSucc (EraIndex ix) = EraIndex (S ix)
 eraIndexToInt :: EraIndex xs -> Int
 eraIndexToInt = index_NS . getEraIndex
 
--- -- | x equals to the indexed element in xs
--- newtype KnownEraIndex (xs :: [Type]) x = KnownEraIndex { toEraIndex :: EraIndex xs }
+-- | x equals to the indexed element in xs
+newtype KnownEraIndex (xs :: [Type]) x = KnownEraIndex (NS (TypeEqWrapper x) xs)
+
+newtype TypeEqWrapper x y = TypeEqWrapper (x :~: y)
+
+instance All SingleEraBlock xs => Show (KnownEraIndex xs x) where
+  show = show . toEraIndex
+
+toEraIndex :: SListI xs => KnownEraIndex xs x -> EraIndex xs
+toEraIndex (KnownEraIndex ns) = EraIndex (hmap (\_ -> (K ())) ns)
 
 -- toKnownEraIndex :: SListI xs => EraIndex xs -> NS (KnownEraIndex xs) xs
--- toKnownEraIndex eraIndex@(EraIndex ns) = hmap (\_ -> KnownEraIndex eraIndex) ns
+-- toKnownEraIndex eraIndex@(EraIndex ns) = let
+--   x = hmap (\_ -> K ((), KnownEraIndex _)) ns
+--   in _
 
--- instance (Typeable xs, Typeable x) => ToCBOR (KnownEraIndex xs x) where
---   toCBOR = toCBOR . toEraIndex
+instance (SListI xs, Typeable xs, Typeable x) => Serialise (KnownEraIndex xs x) where
+  encode = toCBOR
+  decode = fromCBOR
 
--- instance (Typeable xs, Typeable x) => FromCBOR (KnownEraIndex xs x) where
---   fromCBOR = do
---     (EraIndex eraIndex) :: EraIndex xs <- fromCBOR
---     let checkIndex ns = case ns of
---           Z
---     return $ KnownEraIndex $ EraIndex $ hmap _ eraIndex
+instance (SListI xs, Typeable xs, Typeable x) => ToCBOR (KnownEraIndex xs x) where
+  toCBOR = toCBOR . toEraIndex
+
+instance (SListI xs, Typeable xs, Typeable x) => FromCBOR (KnownEraIndex xs x) where
+  fromCBOR = undefined
+    -- do
+    -- (EraIndex eraIndex) :: EraIndex xs <- fromCBOR
+    -- error "TODO fromCBOR (KnownEraIndex xs x)"
+    -- -- let checkIndex ns = case ns of
+    -- --       Z
+    -- -- return $ KnownEraIndex $ EraIndex $ hmap _ eraIndex
+
+instance SameDepIndex (KnownEraIndex xs) where
+  sameDepIndex (KnownEraIndex as) (KnownEraIndex bs) = go as bs
+    where
+      go :: NS (TypeEqWrapper a) xs' -> NS (TypeEqWrapper b) xs' -> Maybe (a :~: b)
+      go (Z (TypeEqWrapper Refl)) (Z (TypeEqWrapper Refl)) = Just Refl
+      go (S as') (S bs')                                   = go as' bs'
+      go _ _                                               = Nothing
+

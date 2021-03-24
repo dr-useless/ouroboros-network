@@ -99,9 +99,9 @@ data instance Query (HardForkBlock xs) :: Type -> Type where
   -- NOTE: we don't allow this when there is only a single era, so that the
   -- HFC applied to a single era is still isomorphic to the single era.
   QueryAnytime ::
-       IsNonEmpty xs
-    => QueryAnytime (x ': xs) result
-    -> EraIndex (x ': xs)
+       (Typeable era, IsNonEmpty xs)
+    => QueryAnytime era result
+    -> KnownEraIndex (x ': xs) era
     -> Query (HardForkBlock (x ': xs)) result
 
   -- | Answer a query about the hard fork combinator
@@ -140,11 +140,12 @@ instance All SingleEraBlock xs => QueryLedger (HardForkBlock xs) where
             cfgs
             queryIfCurrent
             (distribExtLedgerState ext)
-        QueryAnytime queryAnytime (EraIndex era) ->
+        QueryAnytime queryAnytime knownEraIndex ->
           interpretQueryAnytime
             lcfg
+            ccfg
             queryAnytime
-            (EraIndex era)
+            knownEraIndex
             hardForkState
         QueryHardFork queryHardFork ->
           interpretQueryHardFork
@@ -154,6 +155,7 @@ instance All SingleEraBlock xs => QueryLedger (HardForkBlock xs) where
     where
       cfgs = hmap ExtLedgerCfg $ distribTopLevelConfig ei cfg
       lcfg = configLedger cfg
+      ccfg = configConsensus cfg
       ei   = State.epochInfoLedger lcfg hardForkState
 
 -- | Precondition: the 'ledgerState' and 'headerState' should be from the same
@@ -190,7 +192,7 @@ instance All SingleEraBlock xs => SameDepIndex (Query (HardForkBlock xs)) where
   sameDepIndex (QueryIfCurrent {}) _ =
       Nothing
   sameDepIndex (QueryAnytime qry era) (QueryAnytime qry' era')
-    | era == era'
+    | Just Refl <- sameDepIndex era era'
     = sameDepIndex qry qry'
     | otherwise
     = Nothing
@@ -208,11 +210,11 @@ getHardForkQuery :: Query (HardForkBlock xs) result
                           result :~: HardForkQueryResult xs result'
                        -> QueryIfCurrent xs result'
                        -> r)
-                 -> (forall x' xs'.
+                 -> (forall x' xs' blk.
                           xs :~: x' ': xs'
                        -> ProofNonEmpty xs'
-                       -> QueryAnytime xs result
-                       -> EraIndex xs
+                       -> QueryAnytime blk result
+                       -> KnownEraIndex xs blk
                        -> r)
                  -> (forall x' xs'.
                           xs :~: x' ': xs'
@@ -270,21 +272,21 @@ interpretQueryIfCurrent = go
   Any era queries
 -------------------------------------------------------------------------------}
 
-data QueryAnytime xs result where
-  GetEraStart               :: QueryAnytime xs (Maybe Bound)
-  GetSlotLength             :: QueryAnytime xs SlotLength
-  GetEpochSize              :: QueryAnytime xs EpochSize
-  GetPartialConsensusConfig :: QueryAnytime xs (OneEraConsensusConfig xs)
+data QueryAnytime blk result where
+  GetEraStart               :: QueryAnytime blk (Maybe Bound)
+  GetSlotLength             :: QueryAnytime blk SlotLength
+  GetEpochSize              :: QueryAnytime blk EpochSize
+  GetPartialConsensusConfig :: QueryAnytime blk (PartialConsensusConfig (BlockProtocol blk))
 
-deriving instance Show (QueryAnytime xs result)
+deriving instance Show (QueryAnytime blk result)
 
-instance ShowQuery (QueryAnytime xs) where
+instance ShowQuery (QueryAnytime blk) where
   showResult GetEraStart               = show
   showResult GetSlotLength             = show
   showResult GetEpochSize              = show
   showResult GetPartialConsensusConfig = const "PartialLedgerConfig{}"
 
-instance SameDepIndex (QueryAnytime xs) where
+instance SameDepIndex (QueryAnytime blk) where
   sameDepIndex GetEraStart GetEraStart                             = Just Refl
   sameDepIndex GetEraStart _                                       = Nothing
   sameDepIndex GetSlotLength GetSlotLength                         = Just Refl
@@ -295,13 +297,14 @@ instance SameDepIndex (QueryAnytime xs) where
   sameDepIndex GetPartialConsensusConfig _                         = Nothing
 
 interpretQueryAnytime ::
-     forall result xs. All SingleEraBlock xs
+     forall result xs era. All SingleEraBlock xs
   => HardForkLedgerConfig xs
-  -> QueryAnytime xs result
-  -> EraIndex xs
+  -> ConsensusConfig (BlockProtocol (HardForkBlock xs))
+  -> QueryAnytime era result
+  -> KnownEraIndex xs era
   -> State.HardForkState LedgerState xs
   -> result
-interpretQueryAnytime HardForkLedgerConfig{..} query (EraIndex era) st
+interpretQueryAnytime HardForkLedgerConfig{..} consensusConfig query knownEraIndex@(KnownEraIndex typeEqs) st
   = case query of
     GetEraStart ->
       goGetEraStart
@@ -310,8 +313,13 @@ interpretQueryAnytime HardForkLedgerConfig{..} query (EraIndex era) st
         (State.situate era st)
     GetSlotLength -> eraSlotLength $ lookupEraParams (EraIndex era) allEraParams
     GetEpochSize -> eraEpochSize $ lookupEraParams (EraIndex era) allEraParams
-    GetPartialConsensusConfig -> _ hardForkLedgerConfigPerEra
+    GetPartialConsensusConfig ->
+      goGetPartialConsensusConfig typeEqs
+      $ getPerEraConsensusConfig
+      $ hardForkConsensusConfigPerEra consensusConfig
   where
+    EraIndex era = toEraIndex knownEraIndex
+
     allLedgerConfigs = getPerEraLedgerConfig hardForkLedgerConfigPerEra
 
     allEraParams = getExactly (getShape hardForkLedgerConfigShape)
@@ -345,6 +353,19 @@ interpretQueryAnytime HardForkLedgerConfig{..} query (EraIndex era) st
       = case era' of
         Z _     -> eraParams
         S era'' -> lookupEraParams (EraIndex era'') eraParamsRest
+
+    goGetPartialConsensusConfig ::
+         NS (TypeEqWrapper era) xs'
+      -> NP WrapPartialConsensusConfig xs'
+      -> PartialConsensusConfig (BlockProtocol era)
+    goGetPartialConsensusConfig
+      (Z (TypeEqWrapper Refl))
+      (WrapPartialConsensusConfig partialConsensusConfig :* _)
+        = partialConsensusConfig
+    goGetPartialConsensusConfig
+      (S typeEqs')
+      (_ :* consensusConfigs)
+        = goGetPartialConsensusConfig typeEqs' consensusConfigs
 
 {-------------------------------------------------------------------------------
   Hard fork queries
@@ -404,7 +425,7 @@ interpretQueryHardFork cfg query st =
   Serialisation
 -------------------------------------------------------------------------------}
 
-instance Serialise (Some (QueryAnytime xs)) where
+instance Serialise (Some (QueryAnytime blk)) where
   encode = \case
     Some GetEraStart -> mconcat [
         Enc.encodeListLen 1
@@ -418,6 +439,10 @@ instance Serialise (Some (QueryAnytime xs)) where
         Enc.encodeListLen 1
       , Enc.encodeWord8 2
       ]
+    Some GetPartialConsensusConfig -> mconcat [
+        Enc.encodeListLen 1
+      , Enc.encodeWord8 3
+      ]
 
   decode = do
     enforceSize "QueryAnytime" 1
@@ -426,19 +451,29 @@ instance Serialise (Some (QueryAnytime xs)) where
       0 -> return $ Some GetEraStart
       1 -> return $ Some GetSlotLength
       2 -> return $ Some GetEpochSize
+      3 -> return $ Some GetPartialConsensusConfig
       _ -> fail $ "QueryAnytime: invalid tag " ++ show tag
 
-encodeQueryAnytimeResult :: QueryAnytime xs result -> result -> Encoding
+encodeQueryAnytimeResult ::
+     ToCBOR (PartialConsensusConfig (BlockProtocol blk))
+  => QueryAnytime blk result
+  -> result
+  -> Encoding
 encodeQueryAnytimeResult = \case
-   GetEraStart   -> encode
-   GetSlotLength -> toCBOR
-   GetEpochSize  -> toCBOR
+   GetEraStart               -> encode
+   GetSlotLength             -> toCBOR
+   GetEpochSize              -> toCBOR
+   GetPartialConsensusConfig -> toCBOR
 
-decodeQueryAnytimeResult :: QueryAnytime xs result -> forall s. Decoder s result
+decodeQueryAnytimeResult ::
+     FromCBOR (PartialConsensusConfig (BlockProtocol blk))
+  => QueryAnytime blk result
+  -> forall s. Decoder s result
 decodeQueryAnytimeResult = \case
-   GetEraStart   -> decode
-   GetSlotLength -> fromCBOR
-   GetEpochSize  -> fromCBOR
+   GetEraStart               -> decode
+   GetSlotLength             -> fromCBOR
+   GetEpochSize              -> fromCBOR
+   GetPartialConsensusConfig -> fromCBOR
 
 encodeQueryHardForkResult ::
      (ToCBOR (LedgerConfig (HardForkBlock xs)), Typeable xs, SListI xs)

@@ -26,10 +26,9 @@ import           Ouroboros.Consensus.HardFork.History.Summary (Bound, Summary,
                      initBound, neverForksSummary)
 import           Ouroboros.Consensus.Util.SOP
 
+import           Data.Typeable (Typeable)
 import           Ouroboros.Consensus.HardFork.Abstract
-import           Ouroboros.Consensus.HardFork.Combinator.Abstract.SingleEraBlock
-import           Ouroboros.Consensus.HardFork.Combinator.Basics
-import           Ouroboros.Consensus.HardFork.Combinator.Ledger.Query
+import           Ouroboros.Consensus.HardFork.Combinator
 import qualified Ouroboros.Consensus.HardFork.History.Qry as Qry
 
 {-------------------------------------------------------------------------------
@@ -44,8 +43,8 @@ data HardForkCompatQuery blk :: Type -> Type where
     -> HardForkCompatQuery blk result
 
   CompatAnytime ::
-       QueryAnytime (HardForkIndices blk) result
-    -> EraIndex (HardForkIndices blk)
+       QueryAnytime blk result
+    -> KnownEraIndex (HardForkIndices blk) blk
     -> HardForkCompatQuery blk result
 
   CompatHardFork ::
@@ -64,7 +63,7 @@ compatIfCurrent = CompatIfCurrent
 
 -- | Get the start of the specified era, if known
 compatGetEraStart ::
-     EraIndex (HardForkIndices blk)
+     KnownEraIndex (HardForkIndices blk) blk
   -> HardForkCompatQuery blk (Maybe Bound)
 compatGetEraStart = CompatAnytime GetEraStart
 
@@ -82,7 +81,7 @@ compatGetInterpreter = CompatHardFork GetInterpreter
 -- | Wrapper used when connecting to a server that's running the HFC with
 -- at least two eras
 forwardCompatQuery ::
-       forall m x xs. IsNonEmpty xs
+       forall m x xs. (Typeable x, Typeable xs, IsNonEmpty xs)
     => (forall result. Query (HardForkBlock (x ': xs)) result -> m result)
     -- ^ Submit a query through the LocalStateQuery protocol.
     -> (forall result. HardForkCompatQuery (HardForkBlock (x ': xs)) result -> m result)
@@ -108,13 +107,17 @@ singleEraCompatQuery epochSize slotLen f ledgerConfig consensusConfig = go
   where
     go :: HardForkCompatQuery blk result -> m result
     go (CompatIfCurrent qry)    = f qry
-    go (CompatAnytime   qry ix) = const (goAnytime qry) (trivialIndex ix)
+    go (CompatAnytime   qry ix) = case ix of
+      KnownEraIndex (Z (TypeEqWrapper Refl)) -> goAnytime qry
     go (CompatHardFork  qry)    = goHardFork qry
 
-    goAnytime :: QueryAnytime xs result -> m result
+    goAnytime :: QueryAnytime era result -> m result
     goAnytime GetEraStart   = return $ Just initBound
     goAnytime GetSlotLength = return slotLen
     goAnytime GetEpochSize  = return epochSize
+    goAnytime GetPartialConsensusConfig
+      = case getPerEraConsensusConfig (hardForkConsensusConfigPerEra consensusConfig) of
+        WrapPartialConsensusConfig cfg :* Nil -> return cfg
 
     goHardFork :: QueryHardFork '[era] result -> m result
     goHardFork GetInterpreter   = return $ Qry.mkInterpreter summary
@@ -124,6 +127,3 @@ singleEraCompatQuery epochSize slotLen f ledgerConfig consensusConfig = go
 
     summary :: Summary '[era]
     summary = neverForksSummary epochSize slotLen
-
-    trivialIndex :: EraIndex '[era] -> ()
-    trivialIndex (EraIndex (Z (K ()))) = ()

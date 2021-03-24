@@ -242,7 +242,7 @@ instance forall xs . SerialiseHFC xs
             Enc.encodeListLen 3
           , Enc.encodeWord8 1
           , Serialise.encode (Some qry)
-          , Serialise.encode eraIndex
+          , Serialise.encode (toEraIndex eraIndex)
           ]
         QueryHardFork qry -> mconcat [
             Enc.encodeListLen 2
@@ -264,8 +264,9 @@ instance forall xs . SerialiseHFC xs
             (2, 0) -> injQueryIfCurrent <$> dispatchDecoder ccfg version
 
             (3, 1) -> do
-              Some (qry :: QueryAnytime xs result) <- Serialise.decode
+              Some (qry :: QueryAnytime blk result) <- Serialise.decode
               eraIndex :: EraIndex (x' ': xs')  <- Serialise.decode
+              TOD use toKnownEraIndex eraIndex
               case checkIsNonEmpty p of
                 Nothing -> fail $ "QueryAnytime requires multiple era"
                 Just (ProofNonEmpty {}) ->
