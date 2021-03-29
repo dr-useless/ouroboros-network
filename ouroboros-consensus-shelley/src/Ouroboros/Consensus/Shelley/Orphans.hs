@@ -22,3 +22,6 @@ instance Crypto c => TranslateEra (AlonzoEra c) SL.ShelleyGenesis where
 
 instance Crypto c => TranslateEra (AlonzoEra c) SL.Tx where
   translateEra _ctxt _genesis = undefined
+
+instance Crypto c => TranslateEra (AlonzoEra c) SL.NewEpochState where
+  translateEra _ctxt _genesis = undefined

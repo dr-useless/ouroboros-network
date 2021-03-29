@@ -716,12 +716,17 @@ translateLedgerStateAllegraToMaryWrapper =
         unComp . SL.translateEra' () . Comp
 
 translateLedgerStateMaryToAlonzoWrapper ::
-    RequiringBoth
+     PraosCrypto c
+  => RequiringBoth
        WrapLedgerConfig
        (Translate LedgerState)
        (ShelleyBlock (MaryEra c))
        (ShelleyBlock (AlonzoEra c))
-translateLedgerStateMaryToAlonzoWrapper = undefined
+translateLedgerStateMaryToAlonzoWrapper =
+    ignoringBoth $
+      Translate $ \_epochNo ->
+        unComp . SL.translateEra' () . Comp
+
 
 translateTxAllegraToMaryWrapper ::
      PraosCrypto c
