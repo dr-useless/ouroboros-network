@@ -69,6 +69,7 @@ import qualified Ouroboros.Consensus.Protocol.PBFT.State as PBftState
 import           Ouroboros.Consensus.Shelley.Ledger
 import qualified Ouroboros.Consensus.Shelley.Ledger.Inspect as Shelley.Inspect
 import           Ouroboros.Consensus.Shelley.Node ()
+import           Ouroboros.Consensus.Shelley.Orphans ()
 import           Ouroboros.Consensus.Shelley.Protocol
 
 import           Cardano.Ledger.Allegra.Translation ()
@@ -731,7 +732,9 @@ translateTxAllegraToMaryWrapper = InjectTx $
     fmap unComp . eitherToMaybe . runExcept . SL.translateEra () . Comp
 
 translateTxMaryToAlonzoWrapper ::
-     InjectTx
+     PraosCrypto c
+  => InjectTx
        (ShelleyBlock (MaryEra c))
        (ShelleyBlock (AlonzoEra c))
-translateTxMaryToAlonzoWrapper = undefined
+translateTxMaryToAlonzoWrapper = InjectTx $
+    fmap unComp . eitherToMaybe . runExcept . SL.translateEra () . Comp
