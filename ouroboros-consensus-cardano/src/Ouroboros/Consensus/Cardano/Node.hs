@@ -47,9 +47,6 @@ import           Data.Word (Word16)
 
 import           Cardano.Binary (DecoderError (..), enforceSize)
 import           Cardano.Chain.Slotting (EpochSlots)
-import           Cardano.Ledger.Crypto (Crypto)
-import           Cardano.Ledger.Era (PreviousEra, TranslateEra,
-                     TranslationContext)
 import           Cardano.Prelude (cborError)
 
 import           Ouroboros.Consensus.Block
@@ -61,6 +58,7 @@ import           Ouroboros.Consensus.Node.NetworkProtocolVersion
 import           Ouroboros.Consensus.Node.ProtocolInfo
 import           Ouroboros.Consensus.Node.Run
 import           Ouroboros.Consensus.Storage.Serialisation
+import           Ouroboros.Consensus.Shelley.Orphans
 import           Ouroboros.Consensus.Util.Assert
 import           Ouroboros.Consensus.Util.Counting
 import           Ouroboros.Consensus.Util.IOLike
@@ -395,13 +393,6 @@ instance CardanoHardForkConstraints c
 data ProtocolParamsTransition eraFrom eraTo = ProtocolParamsTransition {
       transitionTrigger    :: TriggerHardFork
     }
-
--- | Orphaned instance, this should exists on ledger side
-type instance PreviousEra (AlonzoEra c) = MaryEra c
-type instance TranslationContext (AlonzoEra c) = ()
-
-instance Crypto c => TranslateEra (AlonzoEra c) ShelleyGenesis where
-  translateEra _ctxt _genesis = undefined
 
 -- | Create a 'ProtocolInfo' for 'CardanoBlock'
 --
