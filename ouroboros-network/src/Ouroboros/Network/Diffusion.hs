@@ -96,6 +96,7 @@ import           Ouroboros.Network.PeerSelection.LedgerPeers ( LedgerPeersConsen
                                                              , NumberOfPeers
                                                              , UseLedgerAfter (..)
                                                              , runLedgerPeers)
+import           Ouroboros.Network.PeerSelection.PeerMetric (PeerMetrics)
 import           Ouroboros.Network.PeerSelection.PeerStateActions ( PeerSelectionActionsTrace (..)
                                                                   , PeerStateActionsArguments (..)
                                                                   , PeerConnectionHandle
@@ -379,6 +380,7 @@ data DiffusionApplications ntnAddr ntcAddr ntnVersionData ntcVersionData m =
 
     , daLedgerPeersCtx :: LedgerPeersConsensusInterface m
       -- ^ Interface used to get peers from the current ledger.
+    , daPeerMetrics    :: PeerMetrics m ntnAddr
     }
 
 
@@ -575,6 +577,7 @@ runDataDiffusion tracers
                                        , daMiniProtocolParameters
                                        , daLocalRethrowPolicy
                                        , daLedgerPeersCtx
+                                       , daPeerMetrics
                                        } =
     -- We run two services: for /node-to-node/ and /node-to-client/.  The
     -- naming convention is that we use /local/ prefix for /node-to-client/
@@ -838,10 +841,13 @@ runDataDiffusion tracers
                             dtTracePeerSelectionTracer
                             dtDebugPeerSelectionInitiatorTracer
                             peerSelectionActions
-                            (Diffusion.Policies.simplePeerSelectionPolicy policyRngVar))
+                            (Diffusion.Policies.simplePeerSelectionPolicy
+                              policyRngVar daPeerMetrics))
                           $ \governorThread ->
                             Async.withAsync
                               (Governor.peerChurnGovernor
+                                dtTracePeerSelectionTracer
+                                daPeerMetrics
                                 churnRng
                                 daPeerSelectionTargets
                                 peerSelectionTargetsVar)
@@ -946,7 +952,8 @@ runDataDiffusion tracers
                           dtTracePeerSelectionTracer
                           dtDebugPeerSelectionInitiatorResponderTracer
                           peerSelectionActions
-                          (Diffusion.Policies.simplePeerSelectionPolicy policyRngVar))
+                          (Diffusion.Policies.simplePeerSelectionPolicy
+                            policyRngVar daPeerMetrics))
                         $ \governorThread -> do
                         let mkAddr :: AddrInfo -> (Socket.Family, SockAddr)
                             mkAddr addr = ( Socket.addrFamily  addr
@@ -978,6 +985,8 @@ runDataDiffusion tracers
                                 $ \serverThread ->
                                   Async.withAsync
                                     (Governor.peerChurnGovernor
+                                      dtTracePeerSelectionTracer
+                                      daPeerMetrics
                                       churnRng
                                       daPeerSelectionTargets
                                       peerSelectionTargetsVar)

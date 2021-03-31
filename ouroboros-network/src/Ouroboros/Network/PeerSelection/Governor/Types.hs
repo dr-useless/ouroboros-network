@@ -460,6 +460,7 @@ data TracePeerSelection peeraddr =
      | TraceDemoteHotDone      Int Int peeraddr
      | TraceDemoteAsynchronous (Map peeraddr PeerStatus)
      | TraceGovernorWakeup
+     | TraceXXX                String
   deriving Show
 
 data DebugPeerSelection peeraddr peerconn =

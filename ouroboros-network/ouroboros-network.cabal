@@ -68,6 +68,7 @@ library
                        Ouroboros.Network.PeerSelection.EstablishedPeers
                        Ouroboros.Network.PeerSelection.KnownPeers
                        Ouroboros.Network.PeerSelection.LedgerPeers
+                       Ouroboros.Network.PeerSelection.PeerMetric
                        Ouroboros.Network.PeerSelection.PeerStateActions
                        Ouroboros.Network.PeerSelection.RootPeersDNS
                        Ouroboros.Network.PeerSelection.Governor
