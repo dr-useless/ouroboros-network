@@ -238,6 +238,7 @@ nullTracers = DiffusionTracers {
   , dtTracePeerSelectionTracer                   = nullTracer
   , dtDebugPeerSelectionInitiatorTracer          = nullTracer
   , dtDebugPeerSelectionInitiatorResponderTracer = nullTracer
+  , dtTracePeerSelectionCounters                 = nullTracer
   , dtPeerSelectionActionsTracer                 = nullTracer
   , dtConnectionManagerTracer                    = nullTracer
   , dtServerTracer                               = nullTracer
