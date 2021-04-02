@@ -267,6 +267,7 @@ runGovernorInMockEnvironment mockEnv =
       peerSelectionGovernor
         tracerTracePeerSelection
         tracerDebugPeerSelection
+        tracerTracePeerSelectionCounters
         actions
         policy
 
@@ -731,6 +732,7 @@ prop_governor_connstatus (GovernorMockEnvironmentWAD env) =
 
 data TestTraceEvent = GovernorDebug (DebugPeerSelection PeerAddr ())
                     | GovernorEvent (TracePeerSelection PeerAddr)
+                    | GovernorCounters PeerSelectionCounters
                     | MockEnvEvent   TraceMockEnv
   deriving Show
 
@@ -740,6 +742,9 @@ tracerTracePeerSelection = contramap GovernorEvent tracerTestTraceEvent
 tracerDebugPeerSelection :: Tracer (IOSim s) (DebugPeerSelection PeerAddr peerconn)
 tracerDebugPeerSelection = contramap (GovernorDebug . fmap (const ()))
                                      tracerTestTraceEvent
+
+tracerTracePeerSelectionCounters :: Tracer (IOSim s) PeerSelectionCounters
+tracerTracePeerSelectionCounters = contramap GovernorCounters tracerTestTraceEvent
 
 tracerMockEnv :: Tracer (IOSim s) TraceMockEnv
 tracerMockEnv = contramap MockEnvEvent tracerTestTraceEvent
@@ -1180,7 +1185,7 @@ _governorFindingPublicRoots targetNumberOfRootPeers domains =
       domains $ \requestPublicRootPeers ->
 
         peerSelectionGovernor
-          tracer tracer
+          tracer tracer tracer
           actions { requestPublicRootPeers }
           policy
   where
