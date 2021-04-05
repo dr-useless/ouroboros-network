@@ -125,6 +125,9 @@ module Ouroboros.Network.ConnectionManager.Types
   , ConnectionManagerError (..)
   , SomeConnectionManagerError (..)
   , AbstractState (..)
+    -- * Counters
+  , ConnectionManagerCounters (..)
+  , abstractStateToCounters
     -- * Mux types
   , WithMuxMode (..)
   , withInitiatorMode
@@ -635,6 +638,38 @@ data AbstractState
     | TerminatedSt
     deriving (Eq, Show, Typeable)
 
+-- | Counters for tracing and analysis purposes
+data ConnectionManagerCounters = ConnectionManagerCounters {
+  numberConns   :: !Int,
+  duplexConns   :: !Int,
+  uniConns      :: !Int,
+  incomingConns :: !Int,
+  outgoingConns :: !Int
+  } deriving Show
+
+instance Semigroup ConnectionManagerCounters where
+    ConnectionManagerCounters c1 d1 s1 i1 o1 <> ConnectionManagerCounters c2 d2 s2 i2 o2 =
+      ConnectionManagerCounters (c1 + c2) (d1 + d2) (s1 + s2) (i1 +  i2) (o1 + o2)
+
+instance Monoid ConnectionManagerCounters where
+    mempty = ConnectionManagerCounters 0 0 0 0 0
+
+-- | Perform counting from an 'AbstractState'
+abstractStateToCounters :: AbstractState -> ConnectionManagerCounters
+abstractStateToCounters UnknownConnectionSt             = ConnectionManagerCounters 0 0 0 0 0
+abstractStateToCounters ReservedOutboundSt              = ConnectionManagerCounters 0 0 0 0 0
+abstractStateToCounters (UnnegotiatedSt Inbound)        = ConnectionManagerCounters 1 0 0 1 0
+abstractStateToCounters (UnnegotiatedSt Outbound)       = ConnectionManagerCounters 0 0 0 0 1
+abstractStateToCounters (InboundIdleSt  Unidirectional) = ConnectionManagerCounters 1 0 1 1 0
+abstractStateToCounters (InboundIdleSt  Duplex)         = ConnectionManagerCounters 1 1 0 1 0
+abstractStateToCounters (InboundSt      Unidirectional) = ConnectionManagerCounters 1 0 1 1 0
+abstractStateToCounters (InboundSt      Duplex)         = ConnectionManagerCounters 1 1 0 1 0
+abstractStateToCounters OutboundUniSt                   = ConnectionManagerCounters 0 0 1 0 1
+abstractStateToCounters (OutboundDupSt  _)              = ConnectionManagerCounters 1 1 0 0 1
+abstractStateToCounters DuplexSt                        = ConnectionManagerCounters 1 1 0 1 1
+abstractStateToCounters WaitRemoteIdleSt                = ConnectionManagerCounters 0 0 0 0 0
+abstractStateToCounters TerminatingSt                   = ConnectionManagerCounters 0 0 0 0 0
+abstractStateToCounters TerminatedSt                    = ConnectionManagerCounters 0 0 0 0 0
 
 -- | Exceptions used by 'ConnectionManager'.
 --
@@ -789,7 +824,7 @@ data ConnectionManagerTrace peerAddr handlerTrace
   | TrConnectionCleanup          !(ConnectionId peerAddr)
   | TrConnectionTimeWait         !(ConnectionId peerAddr)
   | TrConnectionTimeWaitDone     !(ConnectionId peerAddr)
-  | TrDebugState                 !(Map peerAddr AbstractState)
+  | TrConnectionManagerCounters  !ConnectionManagerCounters
   deriving Show
 
 

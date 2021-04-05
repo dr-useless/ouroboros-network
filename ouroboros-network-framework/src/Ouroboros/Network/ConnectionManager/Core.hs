@@ -123,6 +123,8 @@ data ConnectionManagerArguments handlerTrace socket peerAddr handle handleError 
 type ConnectionManagerState peerAddr handle handleError version m
   = Map peerAddr (StrictTVar m (ConnectionState peerAddr handle handleError version m))
 
+connectionManagerStateToCounters :: Map peerAddr (ConnectionState peerAddr handle handleError version m) -> ConnectionManagerCounters
+connectionManagerStateToCounters = Map.foldMapWithKey (const abstractStateToCounters) . (abstractState . Known <$>)
 
 -- | State of a connection.
 --
@@ -447,24 +449,15 @@ withConnectionManager ConnectionManagerArguments {
             traverse_ cancel (getConnThread connState) )
           state
   where
+    traceConnectionManagerCounters :: StrictTMVar m (ConnectionManagerState peerAddr handle handleError version m) -> m ()
+    traceConnectionManagerCounters stateVar = do
+      mState <- atomically $ readTMVar stateVar >>= traverse readTVar
+      traceWith tracer (TrConnectionManagerCounters (connectionManagerStateToCounters mState))
+
     countConnections :: ConnectionManagerState peerAddr handle handleError version m
                      -> STM m Int
-    countConnections state =
-        Map.size
-      . Map.filter
-              (\connState -> case connState of
-                ReservedOutboundState          -> False
-                UnnegotiatedState Inbound  _ _ -> True
-                UnnegotiatedState Outbound _ _ -> False
-                InboundIdleState {}            -> True
-                InboundState {}                -> True
-                OutboundUniState {}            -> False
-                OutboundDupState {}            -> True
-                DuplexState {}                 -> True
-                TerminatingState {}            -> False
-                TerminatedState {}             -> False)
-     <$> traverse readTVar state
-
+    countConnections =
+        (numberConns . connectionManagerStateToCounters <$>) . traverse readTVar
 
     -- Start connection thread and run connection handler on it.
     --
@@ -546,7 +539,8 @@ withConnectionManager ConnectionManagerArguments {
                            )
 
               case mConnVar of
-                Left !connState ->
+                Left !connState -> do
+                  traceConnectionManagerCounters stateVar
                   traceWith trTracer (TransitionTrace peerAddr
                                         Transition
                                            { fromState = connState
@@ -585,6 +579,7 @@ withConnectionManager ConnectionManagerArguments {
                           )
                       let connState   = maybe Unknown Known mConnState
                           kConnState' = Known connState'
+
                       case updated of
                         Nothing ->
                           return [ Transition { fromState = connState
@@ -599,6 +594,8 @@ withConnectionManager ConnectionManagerArguments {
                                               , toState   = kConnState'
                                               }
                                  ]
+
+                    traceConnectionManagerCounters stateVar
                     traverse_ (traceWith trTracer . TransitionTrace peerAddr) trs
 
       -- start connection thread
@@ -685,6 +682,9 @@ withConnectionManager ConnectionManagerArguments {
                                                                  (Just handleError)
                   HandshakeProtocolViolation -> TerminatedState  (Just handleError)
               modifyTMVarPure_ stateVar (Map.delete peerAddr)
+
+            traceConnectionManagerCounters stateVar
+
             return (Disconnected connId (Just handleError))
 
           Right (handle, version) -> do
@@ -749,6 +749,7 @@ withConnectionManager ConnectionManagerArguments {
                   writeTVar connVar connState'
                   return (mkTransition connState connState')
 
+            traceConnectionManagerCounters stateVar
             -- Note that we don't set a timeout thread here which would perform
             -- @
             --   Commit^{dataFlow}
@@ -865,6 +866,9 @@ withConnectionManager ConnectionManagerArguments {
                        , UnsupportedState TerminatedSt )
 
       traverse_ cancel mbThread
+
+      traceConnectionManagerCounters stateVar
+
       traverse_ (traceWith trTracer . TransitionTrace peerAddr) mbTransition
       return result
 
@@ -1033,6 +1037,9 @@ withConnectionManager ConnectionManagerArguments {
                                       else Just connVar')
                                   peerAddr)
                     return (mkTransition connState connState')
+
+                  traceConnectionManagerCounters stateVar
+
                   traceWith trTracer (TransitionTrace peerAddr tr)
 
               )
@@ -1071,6 +1078,8 @@ withConnectionManager ConnectionManagerArguments {
                   let connState' = UnnegotiatedState provenance connId connThread
                   writeTVar connVar connState'
                   return (mkTransition connState connState')
+
+                traceConnectionManagerCounters stateVar
                 traceWith trTracer (TransitionTrace peerAddr tr)
 
                 res <- atomically (readPromise reader)
@@ -1088,6 +1097,7 @@ withConnectionManager ConnectionManagerArguments {
                                             (Just handleError)
                           HandshakeProtocolViolation ->
                             TerminatedState (Just handleError)
+
                       return ( Map.update
                                 (\connVar' ->
                                   if eqTVar (Proxy :: Proxy m) connVar' connVar
@@ -1123,6 +1133,8 @@ withConnectionManager ConnectionManagerArguments {
                               newOutboundConnection controlChannel connId dataFlow handle
                             NotInResponderMode -> return ()
                           return (mkTransition connState connState')
+
+                    traceConnectionManagerCounters stateVar
                     traceWith
                       trTracer
                       (TransitionTrace peerAddr transition)
@@ -1212,10 +1224,15 @@ withConnectionManager ConnectionManagerArguments {
             case etr of
               Left tr'  -> traceWith trTracer tr'
               Right tr' -> traceWith tracer   tr'
+
+            traceConnectionManagerCounters stateVar
+
             return connected
 
           -- Connection manager has a connection which can be reused.
-          Right (Here connected) ->
+          Right (Here connected) -> do
+            traceConnectionManagerCounters stateVar
+
             return connected
 
 
@@ -1350,6 +1367,8 @@ withConnectionManager ConnectionManagerArguments {
               TerminatedState _handleError ->
                 return (DemoteToColdLocalNoop (mkTransition connState connState))
 
+      traceConnectionManagerCounters stateVar
+
       case transition of
         DemotedToColdLocal _connId connThread tr -> do
           traceWith trTracer (TransitionTrace peerAddr tr)
@@ -1424,6 +1443,8 @@ withConnectionManager ConnectionManagerArguments {
               TerminatedState {} ->
                 return (UnsupportedState TerminatedSt)
 
+      traceConnectionManagerCounters stateVar
+
       -- trace transition
       case result of
         OperationSuccess tr ->
@@ -1484,6 +1505,8 @@ withConnectionManager ConnectionManagerArguments {
                 return (UnsupportedState TerminatingSt)
               TerminatedState {} ->
                 return (UnsupportedState TerminatedSt)
+
+      traceConnectionManagerCounters stateVar
 
       -- trace transition
       case result of
