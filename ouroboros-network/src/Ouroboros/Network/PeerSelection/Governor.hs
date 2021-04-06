@@ -56,6 +56,7 @@ import qualified Ouroboros.Network.PeerSelection.Governor.KnownPeers       as Kn
 import qualified Ouroboros.Network.PeerSelection.Governor.Monitor          as Monitor
 import qualified Ouroboros.Network.PeerSelection.Governor.RootPeers        as RootPeers
 import           Ouroboros.Network.PeerSelection.Governor.Types
+import           Ouroboros.Network.BlockFetch (FetchMode (..))
 
 
 {- $overview
@@ -563,27 +564,42 @@ $peer-churn-governor
 
 -- |
 --
-peerChurnGovernor :: forall m.
+peerChurnGovernor :: forall m peeraddr.
                      ( MonadSTM m
                      , MonadMonotonicTime m
                      , MonadDelay m
                      )
-                  => StdGen
+                  => Tracer m (TracePeerSelection peeraddr)
+                  -> StdGen
+                  -> STM m FetchMode
                   -> PeerSelectionTargets
                   -> StrictTVar m PeerSelectionTargets
                   -> m Void
-peerChurnGovernor inRng base peerSelectionVar = do
+peerChurnGovernor tracer inRng getFetchMode base peerSelectionVar = do
   -- Wait a while so that not only the closest peers have had the time
   -- to become warm.
   startTs0 <- getMonotonicTime
   threadDelay 3
-  atomically $ modifyTVar peerSelectionVar (\targets -> targets {
-      targetNumberOfActivePeers = targetNumberOfActivePeers base
-      })
+  atomically updateActivePeers
   endTs0 <- getMonotonicTime
   fuzzyDelay inRng (Time $ diffTime endTs0 startTs0) >>= go
 
   where
+
+    updateActivePeers :: STM m ()
+    updateActivePeers =  do
+        mode <- getFetchMode
+        modifyTVar peerSelectionVar (\targets -> targets {
+          targetNumberOfActivePeers =
+              case mode of
+                   FetchModeDeadline ->
+                       targetNumberOfActivePeers base
+                   FetchModeBulkSync ->
+                       min 2 (targetNumberOfActivePeers base)
+
+        })
+
+    go :: StdGen -> m Void
     go rng = do
       startTs <- getMonotonicTime
 
@@ -597,9 +613,7 @@ peerChurnGovernor inRng base peerSelectionVar = do
 
       -- Pick new active peer(s) based on the best performing established
       -- peers.
-      atomically $ modifyTVar peerSelectionVar (\targets -> targets {
-          targetNumberOfActivePeers = targetNumberOfActivePeers base
-          })
+      atomically $ updateActivePeers
 
       -- Give the promotion process time to start
       threadDelay 1
@@ -628,14 +642,34 @@ peerChurnGovernor inRng base peerSelectionVar = do
     -- Randomly delay between churnInterval and churnInterval + maxFuzz seconds.
     fuzzyDelay :: StdGen -> Time -> m StdGen
     fuzzyDelay rng execTime = do
-      let (fuzz, rng') = randomR (0, 600 :: Double) rng
-      threadDelay $ (realToFrac fuzz) + (diffTime churnInterval execTime)
+      mode <- atomically getFetchMode
+      case mode of
+           FetchModeDeadline -> longDelay rng execTime
+           FetchModeBulkSync -> shortDelay rng execTime
+
+    fuzzyDelay' :: Time -> Double -> StdGen -> Time -> m StdGen
+    fuzzyDelay' baseDelay maxFuzz rng execTime = do
+      let (fuzz, rng') = randomR (0, maxFuzz :: Double) rng
+          !delay = (realToFrac fuzz) + (diffTime baseDelay execTime)
+      traceWith tracer $ TraceChurnWait delay
+      threadDelay delay
       return rng'
+
+
+    longDelay :: StdGen -> Time -> m StdGen
+    longDelay = fuzzyDelay' churnInterval 600
+
+
+    shortDelay :: StdGen -> Time -> m StdGen
+    shortDelay = fuzzyDelay' churnIntervalBulk 60
 
     -- The min time between running the churn governor.
     churnInterval :: Time
     churnInterval = Time 3300
 
+
+    churnIntervalBulk :: Time
+    churnIntervalBulk = Time 300
 
     -- Replace 20% or at least on peer every churnInterval.
     decrease :: Int -> Int
