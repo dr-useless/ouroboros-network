@@ -34,6 +34,7 @@ module Ouroboros.Network.Diffusion
   , PeerSelectionCounters (..)
   , ConnectionManagerTrace (..)
   , ConnectionHandlerTrace (..)
+  , ConnectionManagerCounters (..)
   , ServerTrace (..)
   )
   where
