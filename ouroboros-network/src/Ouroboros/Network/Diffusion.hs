@@ -31,6 +31,7 @@ module Ouroboros.Network.Diffusion
   , TracePeerSelection (..)
   , DebugPeerSelection (..)
   , PeerSelectionActionsTrace (..)
+  , PeerSelectionCounters (..)
   , ConnectionManagerTrace (..)
   , ConnectionHandlerTrace (..)
   , ServerTrace (..)
