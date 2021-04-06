@@ -313,7 +313,7 @@ secondEraOverlaySlots numSlots (NumSlots numFirstEraSlots) d secondEraEpochSize 
 
     -- Suitable only for this narrow context
     epochInfo :: EpochInfo Identity
-    epochInfo = fixedSizeEpochInfo secondEraEpochSize
+    epochInfo = fixedEpochInfo secondEraEpochSize (error "dummy mkSlotLength")
 
 tabulatePartitionPosition ::
      NumSlots -> Partition -> Bool -> Property -> Property

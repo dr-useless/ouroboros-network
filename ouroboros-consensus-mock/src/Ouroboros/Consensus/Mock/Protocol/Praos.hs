@@ -388,7 +388,7 @@ slotEpoch :: ConsensusConfig (Praos c) -> SlotNo -> EpochNo
 slotEpoch PraosConfig{..} s =
     runIdentity $ epochInfoEpoch epochInfo s
   where
-    epochInfo = fixedSizeEpochInfo (EpochSize praosSlotsPerEpoch)
+    epochInfo = fixedEpochInfo (EpochSize praosSlotsPerEpoch) (error "dummy mkSlotLength")
     PraosParams{..} = praosParams
 
 blockInfoEpoch :: ConsensusConfig (Praos c) -> BlockInfo c -> EpochNo
@@ -398,7 +398,7 @@ epochFirst :: ConsensusConfig (Praos c) -> EpochNo -> SlotNo
 epochFirst PraosConfig{..} e =
     runIdentity $ epochInfoFirst epochInfo e
   where
-    epochInfo = fixedSizeEpochInfo (EpochSize praosSlotsPerEpoch)
+    epochInfo = fixedEpochInfo (EpochSize praosSlotsPerEpoch) (error "dummy mkSlotLength")
     PraosParams{..} = praosParams
 
 infosSlice :: SlotNo -> SlotNo -> [BlockInfo c] -> [BlockInfo c]
